@@ -248,10 +248,10 @@ class ResourceCloudStorage(CloudStorage):
         """
         if self.filename:
             if self.can_use_advanced_azure:
-                from azure.storage import blob as azure_blob
-                from azure.storage.blob.models import ContentSettings
+                from azure.storage.blob import BlockBlobService
+                from azure.storage.blob import ContentSettings
 
-                blob_service = azure_blob.BlockBlobService(
+                blob_service = BlockBlobService(
                     self.driver_options["key"], self.driver_options["secret"]
                 )
                 content_settings = None
