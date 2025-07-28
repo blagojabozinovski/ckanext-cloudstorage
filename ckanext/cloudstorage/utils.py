@@ -19,16 +19,28 @@ def fix_cors(domains):
     cs = CloudStorage()
 
     if cs.can_use_advanced_azure:
-        from azure.storage import CorsRule
-        from azure.storage import blob as azure_blob
+        from azure.storage.blob import BlobServiceClient, CorsRule
 
-        blob_service = azure_blob.BlockBlobService(
-            cs.driver_options["key"], cs.driver_options["secret"]
+        connection_string = (
+            f"DefaultEndpointsProtocol=https;"
+            f"AccountName={cs.driver_options['key']};"
+            f"AccountKey={cs.driver_options['secret']};"
+            f"EndpointSuffix=core.windows.net"
         )
 
-        blob_service.set_blob_service_properties(
-            cors=[CorsRule(allowed_origins=domains, allowed_methods=["GET"])]
+        blob_service_client = BlobServiceClient.from_connection_string(conn_str=connection_string)
+
+        # Define CORS rule
+        cors_rule = CorsRule(
+            allowed_origins=domains,
+            allowed_methods=["GET"],
+            max_age_in_seconds=3600,
+            exposed_headers=["*"],
+            allowed_headers=["*"]
         )
+        
+        blob_service_client.set_service_properties(cors=[cors_rule])
+
         return "Done!", True
     else:
         return (
