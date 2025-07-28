@@ -248,23 +248,35 @@ class ResourceCloudStorage(CloudStorage):
         """
         if self.filename:
             if self.can_use_advanced_azure:
-                from azure.storage.blob import BlockBlobService
+                from azure.storage.blob import BlobServiceClient
                 from azure.storage.blob import ContentSettings
 
-                blob_service = BlockBlobService(
-                    self.driver_options["key"], self.driver_options["secret"]
+                connection_string = (
+                    f"DefaultEndpointsProtocol=https;"
+                    f"AccountName={self.driver_options['key']};"
+                    f"AccountKey={self.driver_options['secret']};"
+                    f"EndpointSuffix=core.windows.net"
                 )
+
+                blob_service_client = BlobServiceClient.from_connection_string(conn_str=connection_string)
+
+                blob_name = self.path_from_filename(id, self.filename)
+                blob_client = blob_service_client.get_blob_client(container=self.container_name, blob=blob_name)
+                
                 content_settings = None
+
                 if self.guess_mimetype:
                     content_type, _ = mimetypes.guess_type(self.filename)
                     if content_type:
                         content_settings = ContentSettings(content_type=content_type)
-                return blob_service.create_blob_from_stream(
-                    container_name=self.container_name,
-                    blob_name=self.path_from_filename(id, self.filename),
-                    stream=self.file_upload,
-                    content_settings=content_settings,
-                )
+                
+                
+                return blob_client.upload_blob(
+                        data=self.file_upload,
+                        overwrite=True,
+                        content_settings=content_settings
+                        )
+                
             else:
                 try:
                     file_upload = self.file_upload
@@ -385,22 +397,24 @@ class ResourceCloudStorage(CloudStorage):
         # If advanced azure features are enabled, generate a temporary
         # shared access link instead of simply redirecting to the file.
         if self.can_use_advanced_azure and self.use_secure_urls:
-            from azure.storage import blob as azure_blob
+            from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 
-            blob_service = azure_blob.BlockBlobService(
-                self.driver_options["key"], self.driver_options["secret"]
-            )
-
-            return blob_service.make_blob_url(
+            account_name = self.driver_options["key"]
+            account_key = self.driver_options["secret"]
+            
+            # Generate the SAS token
+            sas_token = generate_blob_sas(
+                account_name=account_name,
                 container_name=self.container_name,
                 blob_name=path,
-                sas_token=blob_service.generate_blob_shared_access_signature(
-                    container_name=self.container_name,
-                    blob_name=path,
-                    expiry=datetime.utcnow() + timedelta(seconds=config_secure_ttl()),
-                    permission=azure_blob.BlobPermissions.READ,
-                ),
+                account_key=account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + timedelta(seconds=config_secure_ttl()),
             )
+
+            blob_url = f"https://{account_name}.blob.core.windows.net/{self.container_name}/{path}?{sas_token}"
+            return blob_url
+        
         elif self.can_use_advanced_aws and self.use_secure_urls:
             from boto3 import client
             from boto3.session import Config
