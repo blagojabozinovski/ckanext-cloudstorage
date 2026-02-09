@@ -281,9 +281,7 @@ class ResourceCloudStorage(CloudStorage):
                         data=self.file_upload,
                         overwrite=True,
                         content_settings=content_settings,
-                        # 3. Increase client-side socket wait time (seconds)
-                        connection_timeout=600, 
-                        # Number of parallel chunk uploads (reduce if connection is very weak)
+                        connection_timeout=600,
                         max_concurrency=2
                         )
                 
