@@ -258,10 +258,17 @@ class ResourceCloudStorage(CloudStorage):
                     f"EndpointSuffix=core.windows.net"
                 )
 
-                blob_service_client = BlobServiceClient.from_connection_string(conn_str=connection_string)
+                blob_service_client = BlobServiceClient.from_connection_string(
+                    conn_str=connection_string,
+                    max_single_put_size=4*1024*1024,
+                    max_block_size=1024*1024
+                    )
 
                 blob_name = self.path_from_filename(id, self.filename)
-                blob_client = blob_service_client.get_blob_client(container=self.container_name, blob=blob_name)
+                blob_client = blob_service_client.get_blob_client(
+                    container=self.container_name,
+                    blob=blob_name,
+                    )
                 
                 content_settings = None
 
@@ -269,12 +276,15 @@ class ResourceCloudStorage(CloudStorage):
                     content_type, _ = mimetypes.guess_type(self.filename)
                     if content_type:
                         content_settings = ContentSettings(content_type=content_type)
-                
-                
+
                 return blob_client.upload_blob(
                         data=self.file_upload,
                         overwrite=True,
-                        content_settings=content_settings
+                        content_settings=content_settings,
+                        # 3. Increase client-side socket wait time (seconds)
+                        connection_timeout=600, 
+                        # Number of parallel chunk uploads (reduce if connection is very weak)
+                        max_concurrency=2
                         )
                 
             else:
